@@ -17,14 +17,13 @@ def format_time(ms):
     minutes = int((ms / (1000*60)) % 60)
     return f'{minutes:02}:{seconds:02}'
 
-def main(track1_path, track2_path, beat_drop_track1_s, bpm):
+def main(track1_path, track2_path, beat_drop_track1_s, beat_drop_track2_s, bpm1, bpm2):
     track1 = read_wav(track1_path)
     track2 = read_wav(track2_path)
     drop_ms = beat_drop_track1_s * 1000
-    beat_drop_track2_s = 37.5
     beat_drop_track2_ms = beat_drop_track2_s * 1000
     track_length_ms = len(track1)
-    start_times = calculate_8bar_starts(bpm, track_length_ms, drop_ms)
+    start_times = calculate_8bar_starts(bpm1, track_length_ms, drop_ms)
 
     print("8-bar section starts:", start_times)
 
@@ -50,8 +49,8 @@ def main(track1_path, track2_path, beat_drop_track1_s, bpm):
                     current_pos = pygame.mixer.music.get_pos()  # Current position in milliseconds
                     next_start = next((time for time in start_times if time > current_pos), None)
                     if next_start is not None:
-                        transition_duration_ms = calculate_transition_timing(bpm, 8, 4)
-                        transitioned_track, _ = gradual_high_pass_blend_transition(track1, track2, next_start+transition_duration_ms, beat_drop_track2_ms, transition_duration_ms)
+                        transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
+                        transitioned_track, _ = gradual_high_pass_blend_transition(track1, track2, next_start+transition_duration_ms, beat_drop_track2_ms, bpm1, bpm2)
                         # Prepare and play the transitioned track
                         # Get current playback position
                         current_pos = pygame.mixer.music.get_pos()  # milliseconds
@@ -86,4 +85,4 @@ def main(track1_path, track2_path, beat_drop_track1_s, bpm):
     pygame.quit()
 
 if __name__ == "__main__":
-    main("../songs/clarity.wav", "../songs/die_young.wav", 39.3, 128)
+    main("../songs/clarity.wav", "../songs/toxic.wav", 39.3, 15.3, 128, 143)

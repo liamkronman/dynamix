@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pydub import AudioSegment
-from pydub.effects import high_pass_filter, low_pass_filter
+from pydub.effects import high_pass_filter, low_pass_filter, speedup
+import datetime
+import math
 
 def read_wav(file_path):
     """Reads a WAV file and returns it as a PyDub audio segment."""
@@ -48,48 +50,59 @@ def plot_detailed_waveforms(track1_samples, track2_samples, filtered_samples, fi
     plt.tight_layout()
     plt.show()
     
-def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, transition_duration_ms):
+def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, bpm1, bpm2):
     # Points of the high-pass filter start and blend start
-    filter_start_ms1 = start_ms1 - transition_duration_ms
-    blend_start_ms2 = start_ms2 - (transition_duration_ms // 2)
+    track1_transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
+    track2_transition_duration_ms = calculate_transition_timing(bpm2, 8, 4)
+    filter_start_ms1 = start_ms1 - track1_transition_duration_ms
+    blend_start_ms2 = start_ms2 - (track2_transition_duration_ms // 2)
 
     # Segments before the filter and blend
     pre_filter = track1[:filter_start_ms1]
 
     # Segments that will be processed
-    filter_segment = track1[filter_start_ms1:start_ms1]
+    track1_transition = track1[filter_start_ms1:start_ms1]
     blend_segment = track2[blend_start_ms2:start_ms2]
 
     post_transition = track2[start_ms2:]
 
     # Prepare segments for transition
-    steps = 100
-    step_ms = transition_duration_ms // steps
+    steps = 80
+    step_ms_in_bpm1 = track1_transition_duration_ms // steps
     filtered_segment = AudioSegment.silent(duration=0)
     
     # Define the number of blending steps
     blend_steps = steps // 2
-    blend_step_ms = (transition_duration_ms // 2) // blend_steps
+    blend_step_ms = (track2_transition_duration_ms // 2) // blend_steps
 
     # Create an initial silent segment for the incoming blend
-    incoming_blend = AudioSegment.silent(duration=blend_step_ms * blend_steps)
+    incoming_blend = AudioSegment.silent(duration=0)
 
     max_low_pass_freq = 5000  # The initial low-pass filter frequency
 
     min_low_pass_freq = 16000
 
+    rel_blend_start_ms = 0
     # Apply the high-pass filter and volume increase gradually
     for i in range(steps):
-        current_ms = i * step_ms
+        current_ms = i * step_ms_in_bpm1
+        current_bpm = bpm1 + (bpm2 - bpm1) * (i / steps)  # Linear interpolation of BPM
+        playback_speed1 = current_bpm / bpm1
+        step_ms = calculate_transition_timing(current_bpm, 8, 4) // steps
         cutoff = 100 + (i / steps) * (5000 - 100)  # Gradually increase cutoff frequency
 
         # Apply high-pass filter to each step segment of track1
-        step_segment = filter_segment[current_ms:current_ms + step_ms]
+        step_segment = track1_transition[current_ms:current_ms + step_ms_in_bpm1]
         filtered_step = high_pass_filter(step_segment, cutoff)
+        og_filtered_step_len = len(filtered_step)
+        filtered_step = speedup(filtered_step, playback_speed=playback_speed1, crossfade=0)
+        filtered_step = filtered_step[:math.ceil(og_filtered_step_len/playback_speed1)]
         filtered_segment += filtered_step
 
         # Gradually increase volume for the incoming segment of track2
         if i >= steps // 2:
+            if i == steps // 2:
+                rel_blend_start_ms += step_ms
             blend_index = i - (steps // 2)
             blend_current_ms = blend_index * blend_step_ms
             incoming_segment = blend_segment[blend_current_ms:blend_current_ms + blend_step_ms]
@@ -107,50 +120,56 @@ def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, tra
             current_low_pass_freq = max_low_pass_freq - (max_low_pass_freq - min_low_pass_freq) * (blend_index / blend_steps)  # Gradually approach 500 Hz
             incoming_segment = low_pass_filter(incoming_segment, current_low_pass_freq)
             incoming_segment = incoming_segment + volume_increase_db
-            
+            playback_speed2 = current_bpm / bpm2
+            og_incoming_segment_len = len(incoming_segment)
+            incoming_segment = speedup(incoming_segment, playback_speed=playback_speed2, crossfade=0)
+            incoming_segment = incoming_segment[:math.ceil(og_incoming_segment_len/playback_speed2)]
             # Overlay the incoming segment onto the incoming_blend segment
-            incoming_blend = incoming_blend.overlay(incoming_segment, position=blend_current_ms)
+            incoming_blend += incoming_segment
+        else:
+            rel_blend_start_ms += step_ms
 
     # Combine filtered and incoming blend segments
-    filtered_segment = filtered_segment.overlay(incoming_blend, position=transition_duration_ms // 2)
+    filtered_segment = filtered_segment.overlay(incoming_blend, position=rel_blend_start_ms)
 
     # Combine all segments into the final track
     final_track = pre_filter + filtered_segment + post_transition
     return final_track, filtered_segment
 
 
-def main(track1_path, track2_path, beat_drop_track1_s, beat_drop_track2_s, bpm, measures, beats_per_measure, transition):
+def main(track1_path, track2_path, beat_drop_track1_s, beat_drop_track2_s, bpm1, bpm2, measures, beats_per_measure, transition):
     track1 = read_wav(track1_path)
     track2 = read_wav(track2_path)
-    transition_duration_ms = calculate_transition_timing(bpm, measures, beats_per_measure)
     beat_drop_track1_ms = beat_drop_track1_s * 1000
     beat_drop_track2_ms = beat_drop_track2_s * 1000
 
     if transition == "blend1":
-        transitioned_track, filtered_segment = gradual_high_pass_blend_transition(track1, track2, beat_drop_track1_ms, beat_drop_track2_ms, transition_duration_ms)
-        transitioned_track.export("gradual_high_pass_blend_transition_output.wav", format="wav")
+        transitioned_track, filtered_segment = gradual_high_pass_blend_transition(track1, track2, beat_drop_track1_ms, beat_drop_track2_ms, bpm1, bpm2)
+        transitioned_track.export(f"tests/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_gradual_high_pass_blend_transition_output.wav", format="wav")
+        filtered_segment.export(f"tests/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_gradual_high_pass_blend_transition_filtered.wav", format="wav")
         print("Gradual high-pass blend transition completed and file exported.")
     else:
         print("Invalid transition type specified.")
         return
 
-    track1_samples = extract_samples(track1, 100)
-    track2_samples = extract_samples(track2, 100)
-    filtered_samples = extract_samples(filtered_segment, 100)
-    final_samples = extract_samples(transitioned_track, 100)
+    # track1_samples = extract_samples(track1, 100)
+    # track2_samples = extract_samples(track2, 100)
+    # filtered_samples = extract_samples(filtered_segment, 100)
+    # final_samples = extract_samples(transitioned_track, 100)
 
-    plot_detailed_waveforms(
-        track1_samples, 
-        track2_samples, 
-        filtered_samples, 
-        final_samples, 
-        beat_drop_track1_ms - transition_duration_ms, 
-        transition_duration_ms, 
-        track1.frame_rate, 
-        downsample_rate=441
-    )
+    # plot_detailed_waveforms(
+    #     track1_samples, 
+    #     track2_samples, 
+    #     filtered_samples, 
+    #     final_samples, 
+    #     beat_drop_track1_ms - transition_duration_ms, 
+    #     transition_duration_ms, 
+    #     track1.frame_rate, 
+    #     downsample_rate=441
+    # )
 
     print("Transition completed and file exported.")
 
 if __name__ == "__main__":
-    main("../songs/clarity.wav", "../songs/die_young.wav", 39.3, 37.5, 128, 8, 4, "blend1")
+    # main("../songs/clarity.wav", "../songs/die_young.wav", 39.3, 37.5, 128, 8, 4, "blend1")
+    main("../songs/die_young.wav", "../songs/toxic.wav", 39.3, 15.3, 128, 143, 8, 4, "blend1")
