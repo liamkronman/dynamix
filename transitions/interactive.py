@@ -85,4 +85,5 @@ def main(track1_path, track2_path, beat_drop_track1_s, beat_drop_track2_s, bpm1,
     pygame.quit()
 
 if __name__ == "__main__":
-    main("../songs/clarity.wav", "../songs/toxic.wav", 39.3, 15.3, 128, 143)
+    # main("../songs/toxic.wav", "../songs/clarity.wav", 15.3, 39.3, 143, 128)
+    main("../songs/die_young.wav", "../songs/clarity.wav", 37.5, 39.3, 128, 128)
