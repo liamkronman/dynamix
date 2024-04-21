@@ -31,6 +31,7 @@ def main(track1_path, track2_path, beat_drop_track1_s, bpm):
     screen = setup_pygame()
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)  # Create a font object with default font and size 36
+    info_font = pygame.font.Font(None, 24)  # Smaller font for info messages
 
     # Prepare the first track
     pygame.mixer.music.load(track1_path)
@@ -60,18 +61,28 @@ def main(track1_path, track2_path, beat_drop_track1_s, bpm):
                         pygame.mixer.music.load(new_audio.export(format="wav"))
                         pygame.mixer.music.play()
                         transition_triggered = True
-            elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_SPACE:
-                    transition_triggered = False
 
         screen.fill((0, 0, 0))
         current_time = pygame.mixer.music.get_pos() + time_offset
         time_text = format_time(current_time)  # Format the current time
         text_surface = font.render(time_text, True, (255, 255, 255))  # Render the text
         screen.blit(text_surface, (10, 10))  # Draw the text on the screen at position (10, 10)
+
+        if not transition_triggered:
+            message = "Hit space to start transition"
+            message_surface = info_font.render(message, True, (255, 255, 255))
+            screen.blit(message_surface, (screen.get_width() / 2 - message_surface.get_width() / 2, screen.get_height() / 2))
+        elif current_time < next_start+transition_duration_ms:
+            countdown_text = f"Transitioning..."
+            countdown_surface = info_font.render(countdown_text, True, (255, 255, 255))
+            screen.blit(countdown_surface, (screen.get_width() / 2 - countdown_surface.get_width() / 2, screen.get_height() / 2))
+        else:
+            message = "Transition complete!"
+            message_surface = info_font.render(message, True, (255, 255, 255))
+            screen.blit(message_surface, (screen.get_width() / 2 - message_surface.get_width() / 2, screen.get_height() / 2))
+
         pygame.display.flip()
         clock.tick(60)
-
     pygame.quit()
 
 if __name__ == "__main__":
