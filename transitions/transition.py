@@ -17,6 +17,14 @@ def calculate_transition_timing(bpm, measures, beats_per_measure):
     beat_duration_ms = (60 / bpm) * 1000
     return int(measures * beats_per_measure * beat_duration_ms)
 
+def calculate_8bar_starts(bpm, track_length_ms, drop_ms):
+    """Calculate the start times of all 8-bar sections in the track."""
+    bar_duration_ms = (60 / bpm) * 4 * 1000  # Duration of 4 beats (1 bar)
+    section_duration_ms = bar_duration_ms * 8  # Duration of 8 bars
+    start_times = [drop_ms - (i * section_duration_ms) for i in range(int(drop_ms / section_duration_ms) + 1)]
+    start_times += [drop_ms + (i * section_duration_ms) for i in range(1, int((track_length_ms - drop_ms) / section_duration_ms) + 1)]
+    return sorted([time for time in start_times if 0 <= time <= track_length_ms])
+
 def plot_detailed_waveforms(track1_samples, track2_samples, filtered_samples, final_samples, transition_start_ms, transition_duration_ms, sample_rate, downsample_rate):
     """Plots detailed waveforms including the filtered and final combined tracks."""
     # Ensure that the length of the time axis matches the length of the downsampled samples
