@@ -52,57 +52,47 @@ def plot_detailed_waveforms(track1_samples, track2_samples, filtered_samples, fi
     
 def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, bpm1, bpm2):
     # Points of the high-pass filter start and blend start
-    track1_transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
-    track2_transition_duration_ms = calculate_transition_timing(bpm2, 8, 4)
-    filter_start_ms1 = start_ms1 - track1_transition_duration_ms
-    blend_start_ms2 = start_ms2 - (track2_transition_duration_ms // 2)
+    transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
+    filter_start_ms1 = start_ms1 - transition_duration_ms
+    blend_start_ms2 = start_ms2 - (transition_duration_ms // 2)
 
     # Segments before the filter and blend
     pre_filter = track1[:filter_start_ms1]
 
     # Segments that will be processed
-    track1_transition = track1[filter_start_ms1:start_ms1]
+    filter_segment = track1[filter_start_ms1:start_ms1]
     blend_segment = track2[blend_start_ms2:start_ms2]
 
     post_transition = track2[start_ms2:]
 
     # Prepare segments for transition
-    steps = 80
-    step_ms_in_bpm1 = track1_transition_duration_ms // steps
+    steps = 100
+    step_ms = transition_duration_ms // steps
     filtered_segment = AudioSegment.silent(duration=0)
     
     # Define the number of blending steps
     blend_steps = steps // 2
-    blend_step_ms = (track2_transition_duration_ms // 2) // blend_steps
+    blend_step_ms = (transition_duration_ms // 2) // blend_steps
 
     # Create an initial silent segment for the incoming blend
-    incoming_blend = AudioSegment.silent(duration=0)
+    incoming_blend = AudioSegment.silent(duration=blend_step_ms * blend_steps)
 
     max_low_pass_freq = 5000  # The initial low-pass filter frequency
 
     min_low_pass_freq = 16000
 
-    rel_blend_start_ms = 0
     # Apply the high-pass filter and volume increase gradually
     for i in range(steps):
-        current_ms = i * step_ms_in_bpm1
-        current_bpm = bpm1 + (bpm2 - bpm1) * (i / steps)  # Linear interpolation of BPM
-        playback_speed1 = current_bpm / bpm1
-        step_ms = calculate_transition_timing(current_bpm, 8, 4) // steps
+        current_ms = i * step_ms
         cutoff = 100 + (i / steps) * (5000 - 100)  # Gradually increase cutoff frequency
 
         # Apply high-pass filter to each step segment of track1
-        step_segment = track1_transition[current_ms:current_ms + step_ms_in_bpm1]
+        step_segment = filter_segment[current_ms:current_ms + step_ms]
         filtered_step = high_pass_filter(step_segment, cutoff)
-        og_filtered_step_len = len(filtered_step)
-        filtered_step = speedup(filtered_step, playback_speed=playback_speed1, crossfade=0)
-        filtered_step = filtered_step[:math.ceil(og_filtered_step_len/playback_speed1)]
         filtered_segment += filtered_step
 
         # Gradually increase volume for the incoming segment of track2
         if i >= steps // 2:
-            if i == steps // 2:
-                rel_blend_start_ms += step_ms
             blend_index = i - (steps // 2)
             blend_current_ms = blend_index * blend_step_ms
             incoming_segment = blend_segment[blend_current_ms:blend_current_ms + blend_step_ms]
@@ -120,21 +110,104 @@ def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, bpm
             current_low_pass_freq = max_low_pass_freq - (max_low_pass_freq - min_low_pass_freq) * (blend_index / blend_steps)  # Gradually approach 500 Hz
             incoming_segment = low_pass_filter(incoming_segment, current_low_pass_freq)
             incoming_segment = incoming_segment + volume_increase_db
-            playback_speed2 = current_bpm / bpm2
-            og_incoming_segment_len = len(incoming_segment)
-            incoming_segment = speedup(incoming_segment, playback_speed=playback_speed2, crossfade=0)
-            incoming_segment = incoming_segment[:math.ceil(og_incoming_segment_len/playback_speed2)]
+            
             # Overlay the incoming segment onto the incoming_blend segment
-            incoming_blend += incoming_segment
-        else:
-            rel_blend_start_ms += step_ms
+            incoming_blend = incoming_blend.overlay(incoming_segment, position=blend_current_ms)
 
     # Combine filtered and incoming blend segments
-    filtered_segment = filtered_segment.overlay(incoming_blend, position=rel_blend_start_ms)
+    filtered_segment = filtered_segment.overlay(incoming_blend, position=transition_duration_ms // 2)
 
     # Combine all segments into the final track
     final_track = pre_filter + filtered_segment + post_transition
     return final_track, filtered_segment
+
+# def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, bpm1, bpm2):
+#     # Points of the high-pass filter start and blend start
+#     track1_transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
+#     track2_transition_duration_ms = calculate_transition_timing(bpm2, 8, 4)
+#     filter_start_ms1 = start_ms1 - track1_transition_duration_ms
+#     blend_start_ms2 = start_ms2 - (track2_transition_duration_ms // 2)
+
+#     # Segments before the filter and blend
+#     pre_filter = track1[:filter_start_ms1]
+
+#     # Segments that will be processed
+#     track1_transition = track1[filter_start_ms1:start_ms1]
+#     blend_segment = track2[blend_start_ms2:start_ms2]
+
+#     post_transition = track2[start_ms2:]
+
+#     # Prepare segments for transition
+#     steps = 80
+#     step_ms_in_bpm1 = track1_transition_duration_ms // steps
+#     filtered_segment = AudioSegment.silent(duration=0)
+    
+#     # Define the number of blending steps
+#     blend_steps = steps // 2
+#     blend_step_ms = (track2_transition_duration_ms // 2) // blend_steps
+
+#     # Create an initial silent segment for the incoming blend
+#     incoming_blend = AudioSegment.silent(duration=0)
+
+#     max_low_pass_freq = 5000  # The initial low-pass filter frequency
+
+#     min_low_pass_freq = 16000
+
+#     rel_blend_start_ms = 0
+#     # Apply the high-pass filter and volume increase gradually
+#     for i in range(steps):
+#         current_ms = i * step_ms_in_bpm1
+#         current_bpm = bpm1 + (bpm2 - bpm1) * (i / steps)  # Linear interpolation of BPM
+#         playback_speed1 = current_bpm / bpm1
+#         step_ms = calculate_transition_timing(current_bpm, 8, 4) // steps
+#         cutoff = 100 + (i / steps) * (5000 - 100)  # Gradually increase cutoff frequency
+
+#         # Apply high-pass filter to each step segment of track1
+#         step_segment = track1_transition[current_ms:current_ms + step_ms_in_bpm1]
+#         filtered_step = high_pass_filter(step_segment, cutoff)
+#         og_filtered_step_len = len(filtered_step)
+#         if playback_speed1 != 1:
+#             filtered_step = speedup(filtered_step, playback_speed=playback_speed1, crossfade=0)
+#             filtered_step = filtered_step[:math.ceil(og_filtered_step_len/playback_speed1)]
+#         filtered_segment += filtered_step
+
+#         # Gradually increase volume for the incoming segment of track2
+#         if i >= steps // 2:
+#             if i == steps // 2:
+#                 rel_blend_start_ms += step_ms
+#             blend_index = i - (steps // 2)
+#             blend_current_ms = blend_index * blend_step_ms
+#             incoming_segment = blend_segment[blend_current_ms:blend_current_ms + blend_step_ms]
+
+#             # Calculate the fade-in factor as a ratio (0.0 to 1.0)
+#             fade_in_factor = blend_index / blend_steps
+            
+#             # Convert the fade-in factor to a gain value in decibels
+#             # The dB change for a full volume track would be 0 dB,
+#             # and for silence it would be negative infinity, but we can use -120 dB as a practical "silence" level.
+#             # Here we interpolate between -infinity dB (silence) and 0 dB (full volume)
+#             volume_increase_db = 20 * np.log10(fade_in_factor) if fade_in_factor > 0 else -120
+    
+#             # Apply a low-pass filter that gradually increases in frequency to normal
+#             current_low_pass_freq = max_low_pass_freq - (max_low_pass_freq - min_low_pass_freq) * (blend_index / blend_steps)  # Gradually approach 500 Hz
+#             incoming_segment = low_pass_filter(incoming_segment, current_low_pass_freq)
+#             incoming_segment = incoming_segment + volume_increase_db
+#             playback_speed2 = current_bpm / bpm2
+#             og_incoming_segment_len = len(incoming_segment)
+#             if playback_speed2 != 1:
+#                 incoming_segment = speedup(incoming_segment, playback_speed=playback_speed2, crossfade=0)
+#                 incoming_segment = incoming_segment[:math.ceil(og_incoming_segment_len/playback_speed2)]
+#             # Overlay the incoming segment onto the incoming_blend segment
+#             incoming_blend += incoming_segment
+#         else:
+#             rel_blend_start_ms += step_ms
+
+#     # Combine filtered and incoming blend segments
+#     filtered_segment = filtered_segment.overlay(incoming_blend, position=rel_blend_start_ms)
+
+#     # Combine all segments into the final track
+#     final_track = pre_filter + filtered_segment + post_transition
+#     return final_track, filtered_segment
 
 
 def main(track1_path, track2_path, beat_drop_track1_s, beat_drop_track2_s, bpm1, bpm2, measures, beats_per_measure, transition):
