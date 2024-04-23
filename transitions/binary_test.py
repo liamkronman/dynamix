@@ -78,9 +78,13 @@ def handle_transition(current_song, next_song):
         # Export and play the transitioned track
         temp_path = f"temp_transitioned_track.wav"
         current_pos = pygame.mixer.music.get_pos()
+        pygame.mixer.music.stop()
         pygame.mixer.music.load(transitioned_track[current_pos+offset:].export(format="wav"))
         pygame.mixer.music.play()
-        offset = beat_drop_ms_next_song - transition_duration_ms
+        offset = beat_drop_ms_next_song - transition_duration_ms - (next_start - current_pos)
+        print(f"beat_drop_ms_next_song: {beat_drop_ms_next_song}")
+        print(f"transition_duration_ms: {transition_duration_ms}")
+        print(f"Offset: {offset / 1000.0} seconds")
     else:
         print("No beat drop info found, playing next song immediately.")
         play_song(next_song)
