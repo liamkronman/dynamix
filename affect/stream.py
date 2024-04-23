@@ -220,7 +220,8 @@ async def read_frames_and_call_api(websocket, path):
         sentiment_score = calculate_sentiment(
             pred
         )  # 1 for positive, 0 for negative, -1 for negative
-        sentiment_history.append(sentiment_score)
+        if sentiment_score:
+            sentiment_history.append(sentiment_score)
 
         # Keep sentiment history within the specified number of frames
         if len(sentiment_history) > num_frames:
