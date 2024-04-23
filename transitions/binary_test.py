@@ -14,29 +14,35 @@ def select_song(current_song=None, switch_type=None, history=None):
     if history is None:
         history = []
 
-    if current_song is None or switch_type == 'switch':
+    if switch_type == 'switch' or current_song is None:
         # Filter out recently played songs if possible
         available_songs = df[~df['track_name'].isin(history)]
-        return available_songs.sample().iloc[0] if not available_songs.empty else df.sample().iloc[0]
+        song = available_songs.sample().iloc[0] if not available_songs.empty else df.sample().iloc[0]
     elif switch_type == 'same':
-        # Find the closest song not in history and not the current song
-        if current_song.name in df.index:
-            df_temp = df.copy()
-            df_temp['similarity_score'] = (
-                abs(df_temp['tempo'] - current_song['tempo']) +
-                abs(df_temp['danceability'] - current_song['danceability']) +
-                abs(df_temp['energy'] - current_song['energy'])
-            )
-            suitable_songs = df_temp[(~df_temp['track_name'].isin(history)) & (df_temp['track_name'] != current_song['track_name'])]
-            return suitable_songs.loc[suitable_songs['similarity_score'].idxmin()] if not suitable_songs.empty else current_song
+        # Ensure current_song is defined to avoid KeyError
+        if current_song is not None:
+            suitable_songs = df[(df['tempo'].between(current_song['tempo'] - 5, current_song['tempo'] + 5)) &
+                                (df['danceability'] >= current_song['danceability']) &
+                                (df['energy'] >= current_song['energy']) &
+                                (~df['track_name'].isin(history)) &
+                                (df['track_name'] != current_song['track_name'])]
+            song = suitable_songs.sample().iloc[0] if not suitable_songs.empty else current_song
         else:
-            return df.sample().iloc[0]
+            song = df.sample().iloc[0]  # Default selection if no current song
+    else:
+        song = df.sample().iloc[0]  # Fallback to random selection
+
+    print(f"Selected Song: {song['track_name']} - Command: {switch_type}")  # Debug statement
+    return song
 
 def play_song(song):
     """Play a song using Pygame."""
     path = "../songs/" + song['local_path']
+    if pygame.mixer.music.get_busy():
+        pygame.mixer.music.stop()
     pygame.mixer.music.load(path)
     pygame.mixer.music.play()
+    print(f"Playing: {path}")  # Debug statement
 
 def handle_transition(current_song, next_song):
     """Handle transition from current song to next song, considering the current play position."""
@@ -60,18 +66,18 @@ history.append(current_song['track_name'])
 running = True
 while running:
     for event in pygame.event.get():
-        if event.type is pygame.QUIT:
+        if event.type == pygame.QUIT:
             running = False
-        elif event.type is pygame.KEYDOWN:
+        elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                command = random.choice(['switch', 'same'])  # This simulates a command based on external triggers
-                print(f"Command received: {command}")
+                print("Space key pressed.")  # Debug statement
+                command = random.choice(['switch', 'same'])
+                print(f"Command: {command}")
                 next_song = select_song(current_song, command, history)
-                print(f"Switching to {next_song['track_name']} by {next_song['artist']}")
-                handle_transition(current_song, next_song)
+                # handle_transition(current_song, next_song)
                 current_song = next_song
                 history.append(current_song['track_name'])
                 if len(history) > 10:
-                    history.pop(0)  # limit history size
+                    history.pop(0)
 
 pygame.quit()
