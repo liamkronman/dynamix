@@ -1,0 +1,1 @@
+1. Use history of reactions to inform decisionmaking (if crowd liked a past song, have it inform future choices).
