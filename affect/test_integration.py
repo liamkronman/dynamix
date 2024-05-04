@@ -13,6 +13,7 @@ import pygame
 from pydub import AudioSegment
 from pygame import mixer
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
 
 df = pd.read_csv("../spotify/good_matched_song_data.csv")
 pygame.init()
@@ -95,6 +96,24 @@ NEUTRAL_EMOTIONS = set(
     ]
 )
 
+# initialize the positive feedback
+if 'positive_feedback_count' not in df.columns:
+    df['positive_feedback_count'] = 0
+
+features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
+df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+
+# Function to calculate similarity matrix
+def calculate_similarity(df):
+    return cosine_similarity(df[features])
+
+def update_positive_feedback(track_id, feedback_events_count):
+    decay_factor = 0.9  # Adjust this based on desired rate of decay
+    df.loc[df['id'] != track_id, 'positive_feedback_count'] *= decay_factor
+    df.loc[df['id'] == track_id, 'positive_feedback_count'] += 1
+
+
+similarity_matrix = calculate_similarity(df)
 
 def select_song(current_song=None, switch_type=None, history=None):
     """Selects a song based on the current song and switch type, avoiding recent history and the current song."""
