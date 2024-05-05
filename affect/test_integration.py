@@ -421,7 +421,10 @@ async def read_frames_and_call_api(websocket, path):
         while True:
             current_pos = pygame.mixer.music.get_pos()  # Get current position in milliseconds
             if transition_start <= current_pos <= transition_end:
+                transitioning = True
                 print("Transitioning")
+            else:
+                transitioning = False
             # Capture frame-by-frame
             ret, frame = cap.read()
 
