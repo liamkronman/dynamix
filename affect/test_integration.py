@@ -243,28 +243,29 @@ def handle_transition(current_song, next_song):
     start_times = calculate_8bar_starts(bpm1, track_length_ms, drop_ms)
 
     if "beat_drop_s" in next_song:
-        beat_drop_ms_next_song = next_song["beat_drop_s"] * 1000
-        print(f"Next Song Beat Drop: {beat_drop_ms_next_song / 1000.0} seconds")
-        next_start = next((time for time in start_times if time > true_pos), None)
-        transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
-        # Assuming transition function is set to handle two audio segments
-        transitioned_track, _ = gradual_high_pass_blend_transition(
-            read_wav("../songs/" + current_song["local_path"]),
-            read_wav("../songs/" + next_song["local_path"]),
-            next_start + transition_duration_ms,
-            beat_drop_ms_next_song,
-            current_song["tempo"],
-            next_song["tempo"],
-        )
+        if true_pos >= current_song["beat_drop_s"] * 1000:
+            beat_drop_ms_next_song = next_song["beat_drop_s"] * 1000
+            print(f"Next Song Beat Drop: {beat_drop_ms_next_song / 1000.0} seconds")
+            next_start = next((time for time in start_times if time > true_pos), None)
+            transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
+            # Assuming transition function is set to handle two audio segments
+            transitioned_track, _ = gradual_high_pass_blend_transition(
+                read_wav("../songs/" + current_song["local_path"]),
+                read_wav("../songs/" + next_song["local_path"]),
+                next_start + transition_duration_ms,
+                beat_drop_ms_next_song,
+                current_song["tempo"],
+                next_song["tempo"],
+            )
 
-        # Export and play the transitioned track
-        current_pos = pygame.mixer.music.get_pos()
-        true_pos = current_pos + offset
-        pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
-        pygame.mixer.music.play()
-        offset = (
-            beat_drop_ms_next_song - transition_duration_ms - (next_start - true_pos)
-        )
+            # Export and play the transitioned track
+            current_pos = pygame.mixer.music.get_pos()
+            true_pos = current_pos + offset
+            pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
+            pygame.mixer.music.play()
+            offset = (
+                beat_drop_ms_next_song - transition_duration_ms - (next_start - true_pos)
+            )
     else:
         print("No beat drop info found, playing next song immediately.")
         play_song(next_song)
