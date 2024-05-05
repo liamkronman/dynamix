@@ -14,10 +14,20 @@ from pydub import AudioSegment
 from pygame import mixer
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
+from pygame.locals import *
 
 df = pd.read_csv("../spotify/good_matched_song_data.csv")
 pygame.init()
 pygame.mixer.init()
+font = pygame.font.Font(None, 36)
+
+width, height = 800, 500
+screen = pygame.display.set_mode((width, height))
+pygame.display.set_caption("Dynamix: Read the Room")
+
+stream_width, stream_height = 640, 400
+stream_x, stream_y = (width - stream_width) // 2, (height - stream_height) // 2
+stream_rect = pygame.Rect(stream_x, stream_y, stream_width, stream_height)
 
 import random
 
@@ -343,89 +353,126 @@ def calculate_sentiment(pred):
         return None
 
 
+
 async def read_frames_and_call_api(websocket, path):
     cap = cv2.VideoCapture(0)
 
-    # running window of sentiment from last 20 frames
+    # Initial setup
     num_frames = 20
     sentiment_history = []
-
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    frame_count = 0
-
-    print(fps)
-
     history = []
     current_song = select_song()
     play_song(current_song)
     history.append(current_song["track_name"])
+    current_mood = "Neutral"  # Default mood
 
-    while True:
-        # Capture frame-by-frame
-        ret, frame = cap.read()
-        # if frame_count % fps * 5 > 0:
-        #     frame_count += 1
-        #     # Display the frame
-        #     cv2.imshow("frame", frame)
-        #     if cv2.waitKey(1) & 0xFF == ord("q"):
-        #         break
-        #     continue
+    try:
+        while True:
+            # Capture frame-by-frame
+            ret, frame = cap.read()
+            if ret:
+                # Process frame for display
+                frame_rgb = cv2.cvtColor(cv2.flip(frame, 1), cv2.COLOR_BGR2RGB)
+                original_width, original_height = frame.shape[1], frame.shape[0]
+                frame_rgb = np.rot90(frame_rgb)
+                frame_surface = pygame.surfarray.make_surface(frame_rgb)
+                frame_surface = pygame.transform.scale(frame_surface, (stream_width, stream_height))
 
-        payload = {
-            "models": {"face": {"identify_faces": True}},
-            "data": encode_frame(frame),
-        }
+                # Fill the background and blit the frame
+                screen.fill((0, 0, 0))
+                screen.blit(frame_surface, (stream_x, stream_y))
 
-        await websocket.send(json.dumps(payload))
+                # Prepare frame data for sending
+                encoded_frame = encode_frame(frame)
+                payload = {"models": {"face": {"identify_faces": True}}, "data": encoded_frame}
+                await websocket.send(json.dumps(payload))
+                message = await websocket.recv()
+                pred = json.loads(message)
 
-        message = await websocket.recv()
-        pred = json.loads(message)
+                # Update sentiment and determine song transitions
+                sentiment_score = calculate_sentiment(pred)
+                if sentiment_score:
+                    sentiment_history.append(sentiment_score)
+                    current_mood = "Positive" if sentiment_score == 1 else "Negative"
 
-        # update sentiment tracker
-        sentiment_score = calculate_sentiment(pred)  # 1 for positive, -1 for negative
-        if sentiment_score:
-            sentiment_history.append(sentiment_score)
+                if len(sentiment_history) > num_frames:
+                    sentiment_history.pop(0)
 
-        # Keep sentiment history within the specified number of frames
-        if len(sentiment_history) > num_frames:
-            sentiment_history.pop(0)
+                if sum(sentiment_history) < -10:  # Negative mood detected
+                    print("Emergency transition")
+                    transition_command = "switch"
+                    next_song = select_song(current_song, transition_command, history)
+                    handle_transition(current_song, next_song)
+                    current_song = next_song
+                    history.append(current_song["track_name"])
+                    for _ in range(20):
+                        sentiment_history.append(1)
+                    if len(history) > 10:
+                        history.pop(0)
+                else:
+                    print("Continue playing")
 
-        # determine if we need to switch
-        if sum(sentiment_history) < -10:  # means sentiment history is all negative
-            print("emergency transition")
-            if pygame.mixer.music.get_pos() + offset >= current_song["beat_drop_s"] * 1000:
-                transition_command = "switch"  # or whatever logic you have
-                # Perform transition logic
-                next_song = select_song(current_song, transition_command, history)
-                handle_transition(current_song, next_song)
-                current_song = next_song
-                history.append(current_song["track_name"])
-                for _ in range(20):
-                    sentiment_history.append(1)
-                if len(history) > 10:
-                    history.pop(0)
-        else:
-            print("continue")
-            transition_command = "same"  # or whatever logic you have
+                if "predictions" in pred["face"]:
+                    for p in pred["face"]["predictions"]:
+                        draw_bounding_boxes_and_labels(p, frame_surface, original_width, original_height)
 
-        if "predictions" in pred["face"]:
-            annotated_frame = draw_on_frame(frame, pred["face"]["predictions"])
-            annotated_frame = annotate_sentiment_score(
-                annotated_frame, sentiment_score, sentiment_history
-            )
-        else:
-            annotated_frame = frame
+                # Display current song and mood
+                display_song_and_mood(current_song, current_mood)
 
-        frame_count += 1
+                # Update the display
+                pygame.display.flip()
 
-        # Display the frame
-        cv2.imshow("frame", annotated_frame)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
+                if pygame.event.get(pygame.QUIT):
+                    break
 
-    # Release resources
-    cap.release()
-    cv2.destroyAllWindows()
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    finally:
+        # Clean up
+        cap.release()
+        cv2.destroyAllWindows()
+        pygame.quit()
 
 
-asyncio.get_event_loop().run_until_complete(connect_to_websocket())
+def display_song_and_mood(current_song, current_mood):
+    # Display song info and mood
+    current_time = pygame.mixer.music.get_pos() // 1000
+    song_info = f'Song: {current_song["track_name"]} - {current_time}s'
+    mood_info = f'Mood: {current_mood}'
+
+    song_text = font.render(song_info, True, pygame.Color('white'))
+    mood_text = font.render(mood_info, True, pygame.Color('white'))
+
+    screen.blit(song_text, (10, 10))
+    screen.blit(mood_text, (10, 50))
+
+def draw_bounding_boxes_and_labels(prediction, surface, original_width, original_height):
+    # Calculate scaling factors
+    scale_x = stream_width / original_width
+    scale_y = stream_height / original_height
+    
+    # Adjust bounding box coordinates
+    x = int(prediction["bbox"]["x"] * scale_x) + stream_x
+    y = int(prediction["bbox"]["y"] * scale_y) + stream_y
+    w = int(prediction["bbox"]["w"] * scale_x)
+    h = int(prediction["bbox"]["h"] * scale_y)
+    
+    # Draw bounding box
+    pygame.draw.rect(screen, (255, 0, 0), (x, y, w, h), 2)
+    
+    # Display the top three emotions with scores
+    emotions = prediction["emotions"]
+    top_three = sorted(emotions, key=lambda e: e["score"], reverse=True)[:3]
+    for i, emotion in enumerate(top_three):
+        label = f"{emotion['name']}: {round(emotion['score'], 2)}"
+        label_surface = font.render(label, True, (255, 0, 0))
+        screen.blit(label_surface, (x, y - (i + 1) * 20))
+
+if __name__ == '__main__':
+    try:
+        asyncio.get_event_loop().run_until_complete(connect_to_websocket())
+    except Exception as e:
+        print(f"Error occurred: {e}")
+    finally:
+        pygame.quit()  # Ensure Pygame quits properly
