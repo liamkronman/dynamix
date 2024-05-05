@@ -115,8 +115,17 @@ NEUTRAL_EMOTIONS = set(
 if "positive_feedback_count" not in df.columns:
     df["positive_feedback_count"] = 0
 
-features = ["danceability", "energy", "tempo", "loudness", "valence"]
-# df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+def update_song_sentiments(current_song_id, sentiment_score):
+    """Update the sentiment score of the song based on the current session's feedback."""
+    if current_song_id in df.index:
+        df.loc[current_song_id, 'play_count'] += 1
+        # Calculate a rolling average of sentiment scores
+        current_average = df.loc[current_song_id, 'sentiment_score']
+        new_average = (current_average * (df.loc[current_song_id, 'play_count'] - 1) + sentiment_score) / df.loc[current_song_id, 'play_count']
+        df.loc[current_song_id, 'sentiment_score'] = new_average
+
+features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
+# df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min())) # don't change TEMPO!
 
 # Function to calculate similarity matrix
 def calculate_similarity(df):
@@ -131,9 +140,27 @@ def update_positive_feedback(track_id, feedback_events_count):
 
 similarity_matrix = calculate_similarity(df)
 
+emotional_scores = []
+
+def calculate_sentiment(pred):
+    global emotional_scores
+    pos, neg = 0, 0
+    for p in pred["face"]["predictions"]:
+        emotions = p["emotions"]
+        for e in emotions:
+            if e["name"] in POSTIVE_EMOTIONS:
+                pos += e["score"]
+            elif e["name"] in NEGATIVE_EMOTIONS:
+                neg += e["score"]
+    emotional_scores.append(pos - neg)
+
+def reset_emotional_scores():
+    global emotional_scores
+    emotional_scores = []
 
 def select_song(current_song=None, switch_type=None, history=None):
     """Selects a song based on the current song and switch type, avoiding recent history and the current song."""
+    global emotional_scores
     if history is None:
         history = []
 
