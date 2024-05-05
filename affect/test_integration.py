@@ -116,28 +116,15 @@ if 'sentiment_score' not in df.columns:
     df['sentiment_score'] = 0
 
 
-def update_song_sentiments(current_song_id, sentiment_score):
-    """Update the sentiment score of the song based on the current session's feedback."""
-    if current_song_id in df.index:
-        df.loc[current_song_id, "play_count"] += 1
-        # Calculate a rolling average of sentiment scores
-        current_average = df.loc[current_song_id, "sentiment_score"]
-        new_average = (
-            current_average * (df.loc[current_song_id, "play_count"] - 1)
-            + sentiment_score
-        ) / df.loc[current_song_id, "play_count"]
-        df.loc[current_song_id, "sentiment_score"] = new_average
-
-
 features = ["danceability", "energy", "tempo", "loudness", "valence"]
-# df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min())) # don't change TEMPO!
+df_features_scaled = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
 # Function to calculate similarity matrix
 def calculate_similarity(df):
     return cosine_similarity(df[features])
 
-
-similarity_matrix = calculate_similarity(df)
+similarity_matrix = calculate_similarity(df_features_scaled)
+print(f"Song similarity matrix: {similarity_matrix}")
 
 emotional_scores = []
 
@@ -165,53 +152,30 @@ def reset_emotional_scores():
 
 def select_song(current_song=None, switch_type=None, history=None):
     """Selects a song based on the current song and switch type, avoiding recent history and the current song."""
-    global emotional_scores
+    global similarity_matrix, df
+
     if history is None:
         history = []
 
-    df_filtered = df[
-        ~df["track_name"].isin(history)
-    ]  # Exclude all songs in history from the options
+    mask = ~df["track_name"].isin(history)
+    print(df['sentiment_score'].values)
 
-    if current_song is None or switch_type == "switch":
-        # Randomly choose from songs not in history
-        song = (
-            df_filtered.sample().iloc[0]
-            if not df_filtered.empty
-            else df.sample().iloc[0]
-        )
-    elif switch_type == "same":
-        # Filter songs to find the closest match not including the current song
-        if current_song is not None:
-            df_filtered = df_filtered[
-                df_filtered["track_name"] != current_song["track_name"]
-            ]  # Also exclude current song
-            suitable_songs = df_filtered[
-                (
-                    df_filtered["tempo"].between(
-                        current_song["tempo"] - 5, current_song["tempo"] + 5
-                    )
-                )
-                & (df_filtered["danceability"] >= current_song["danceability"])
-                & (df_filtered["energy"] >= current_song["energy"])
-            ]
-            song = (
-                suitable_songs.nsmallest(1, "tempo").iloc[0]
-                if not suitable_songs.empty
-                else current_song
-            )
-        else:
-            song = (
-                df_filtered.sample().iloc[0]
-                if not df_filtered.empty
-                else df.sample().iloc[0]
-            )
-    else:
-        song = (
-            df_filtered.sample().iloc[0]
-            if not df_filtered.empty
-            else df.sample().iloc[0]
-        )  # Fallback to random selection
+    aggregate_scores = np.dot(similarity_matrix, df['sentiment_score'].values)
+
+    filtered_scores = aggregate_scores[mask]
+
+    # add the minimum score to all scores to make them positive
+    filtered_scores += abs(filtered_scores.min())
+
+    if filtered_scores.sum() == 0:
+        probabilities = np.ones(len(filtered_scores)) / len(filtered_scores)
+    else: 
+        probabilities = filtered_scores / filtered_scores.sum()
+    print(probabilities)
+
+    selected_index = np.random.choice(df[mask].index, p=probabilities)
+
+    song = df.loc[selected_index]
 
     print(
         f"Selected Song: {song['track_name']} - Command: {switch_type}"
@@ -460,6 +424,8 @@ async def read_frames_and_call_api(websocket, path):
 
                 # Update sentiment and determine song transitions
                 sentiment_score = calculate_sentiment(pred)
+                # add sentiment score to "sentiment_score" column in df for current song
+                df.loc[df['track_name'] == current_song['track_name'], 'sentiment_score'] += sentiment_score
                 sentiment_history.append(sentiment_score)
                 current_mood = "Positive" if sentiment_score == 1 else "Negative"
 
@@ -472,7 +438,7 @@ async def read_frames_and_call_api(websocket, path):
                 ):  # Negative mood detected
                     # only initiate a transition if the beat drop has passed
                     if (
-                        pygame.mixer.music.get_pos()
+                        current_pos + offset
                         >= current_song["beat_drop_s"] * 1000
                     ):
                         print("Emergency transition")
