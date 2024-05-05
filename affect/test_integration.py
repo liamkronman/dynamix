@@ -422,16 +422,23 @@ async def read_frames_and_call_api(websocket, path):
                     sentiment_history.pop(0)
 
                 if sum(sentiment_history) < -10:  # Negative mood detected
-                    print("Emergency transition")
-                    transition_command = "switch"
-                    next_song = select_song(current_song, transition_command, history)
-                    handle_transition(current_song, next_song)
-                    current_song = next_song
-                    history.append(current_song["track_name"])
-                    for _ in range(20):
-                        sentiment_history.append(1)
-                    if len(history) > 10:
-                        history.pop(0)
+                    # only initiate a transition if the beat drop has passed
+                    if (
+                        pygame.mixer.music.get_pos()
+                        >= current_song["beat_drop_s"] * 1000
+                    ):
+                        print("Emergency transition")
+                        transition_command = "switch"
+                        next_song = select_song(
+                            current_song, transition_command, history
+                        )
+                        handle_transition(current_song, next_song)
+                        current_song = next_song
+                        history.append(current_song["track_name"])
+                        for _ in range(20):
+                            sentiment_history.append(1)
+                        if len(history) > 10:
+                            history.pop(0)
                 else:
                     print("Continue playing")
 
@@ -463,7 +470,7 @@ async def read_frames_and_call_api(websocket, path):
 def display_song_and_mood(current_song, current_mood, current_headcount):
     # Display song info and mood
     current_time = pygame.mixer.music.get_pos() // 1000
-    song_info = f'Song: {current_song["track_name"]} - {current_time}s'
+    song_info = f'Song: {current_song["track_name"]} - {current_time+offset//1000}s'
     mood_info = f"Mood: {current_mood}"
     headcount_info = f"Headcount: {current_headcount}"
 
@@ -505,7 +512,10 @@ def draw_bounding_boxes_and_labels(
 
     # Display the top three emotions with scores
     emotions = prediction["emotions"]
-    top_three = sorted(emotions, key=lambda e: e["score"])[:3]
+    top_three = sorted(
+        sorted(emotions, key=lambda e: e["score"], reverse=True)[:3],
+        key=lambda e: e["score"],
+    )
     for i, emotion in enumerate(top_three):
         label = f"{emotion['name']}: {round(emotion['score'], 2)}"
         label_surface = font.render(label, True, color)
