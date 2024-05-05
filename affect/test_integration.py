@@ -30,7 +30,7 @@ width, height = 1120, 700
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Dynamix: Read the Room")
 
-stream_width, stream_height = 800, 500
+stream_width, stream_height = 800, 450
 stream_x, stream_y = (width - stream_width) // 2, (height - stream_height) // 2
 stream_rect = pygame.Rect(stream_x, stream_y, stream_width, stream_height)
 
@@ -141,6 +141,9 @@ similarity_matrix = calculate_similarity(df)
 
 emotional_scores = []
 
+transitioning = False
+transition_start = -1   # tracks the start of the transition
+transition_end = -1     # tracks the end of the transition
 
 def calculate_sentiment(pred):
     global emotional_scores
@@ -232,6 +235,8 @@ offset = 0
 def handle_transition(current_song, next_song):
     """Handle transition from current song to next song, considering the current play position."""
     global offset
+    global transition_start
+    global transition_end
     print(f"Offset: {offset / 1000.0} seconds")
     current_pos = pygame.mixer.music.get_pos()  # Get current position in milliseconds
     true_pos = current_pos + offset
@@ -265,6 +270,8 @@ def handle_transition(current_song, next_song):
             true_pos = current_pos + offset
             pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
             pygame.mixer.music.play()
+            transition_start = next_start - true_pos
+            transition_end = transition_duration_ms + transition_start
             offset = (
                 beat_drop_ms_next_song
                 - transition_duration_ms
@@ -412,6 +419,9 @@ async def read_frames_and_call_api(websocket, path):
 
     try:
         while True:
+            current_pos = pygame.mixer.music.get_pos()  # Get current position in milliseconds
+            if transition_start <= current_pos <= transition_end:
+                print("Transitioning")
             # Capture frame-by-frame
             ret, frame = cap.read()
 
