@@ -101,7 +101,7 @@ if 'positive_feedback_count' not in df.columns:
     df['positive_feedback_count'] = 0
 
 features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
-df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
+# df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
 
 # Function to calculate similarity matrix
 def calculate_similarity(df):
@@ -188,6 +188,7 @@ def handle_transition(current_song, next_song):
     global offset
     print(f"Offset: {offset / 1000.0} seconds")
     current_pos = pygame.mixer.music.get_pos()  # Get current position in milliseconds
+    true_pos = current_pos + offset
     print(f"Current Position: {current_pos / 1000.0} seconds")
     print(f"Tempo: {current_song['tempo']} -> {next_song['tempo']}")
     bpm1 = current_song["tempo"]
@@ -200,7 +201,7 @@ def handle_transition(current_song, next_song):
     if "beat_drop_s" in next_song:
         beat_drop_ms_next_song = next_song["beat_drop_s"] * 1000
         print(f"Next Song Beat Drop: {beat_drop_ms_next_song / 1000.0} seconds")
-        next_start = next((time for time in start_times if time > current_pos), None)
+        next_start = next((time for time in start_times if time > true_pos), None)
         transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
         # Assuming transition function is set to handle two audio segments
         transitioned_track, _ = gradual_high_pass_blend_transition(
@@ -214,12 +215,13 @@ def handle_transition(current_song, next_song):
 
         # Export and play the transitioned track
         current_pos = pygame.mixer.music.get_pos()
+        true_pos = current_pos + offset
         pygame.mixer.music.load(
-            transitioned_track[current_pos + offset :].export(format="wav")
+            transitioned_track[true_pos:].export(format="wav")
         )
         pygame.mixer.music.play()
         offset = (
-            beat_drop_ms_next_song - transition_duration_ms - (next_start - current_pos)
+            beat_drop_ms_next_song - transition_duration_ms - (next_start - true_pos)
         )
     else:
         print("No beat drop info found, playing next song immediately.")
@@ -391,7 +393,7 @@ async def read_frames_and_call_api(websocket, path):
         # determine if we need to switch
         if sum(sentiment_history) < -10:  # means sentiment history is all negative
             print("emergency transition")
-            if pygame.mixer.music.get_pos() >= current_song["beat_drop_s"] * 1000:
+            if pygame.mixer.music.get_pos() + offset >= current_song["beat_drop_s"] * 1000:
                 transition_command = "switch"  # or whatever logic you have
                 # Perform transition logic
                 next_song = select_song(current_song, transition_command, history)

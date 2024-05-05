@@ -56,14 +56,23 @@ def gradual_high_pass_blend_transition(track1, track2, start_ms1, start_ms2, bpm
     filter_start_ms1 = start_ms1 - transition_duration_ms
     blend_start_ms2 = start_ms2 - (transition_duration_ms // 2)
 
+    if blend_start_ms2 < 0:
+        # Add padding if the blend starts before the second track begins
+        padding_duration = abs(blend_start_ms2)
+        padded_track2 = AudioSegment.silent(duration=padding_duration) + track2
+        blend_start_ms2 = 0  # Reset the blend start time to the beginning of the padded track
+        start_ms2 += padding_duration  # Adjust the main beat drop time by the padding duration
+    else:
+        padded_track2 = track2
+
     # Segments before the filter and blend
     pre_filter = track1[:filter_start_ms1]
 
     # Segments that will be processed
     filter_segment = track1[filter_start_ms1:start_ms1]
-    blend_segment = track2[blend_start_ms2:start_ms2]
+    blend_segment = padded_track2[blend_start_ms2:start_ms2]
 
-    post_transition = track2[start_ms2:]
+    post_transition = padded_track2[start_ms2:]
 
     # Prepare segments for transition
     steps = 100
