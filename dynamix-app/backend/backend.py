@@ -11,6 +11,7 @@ from hume import HumeStreamClient, StreamSocket
 from hume.models.config import FaceConfig
 import os
 from dotenv import load_dotenv
+from flask_socketio import SocketIO
 
 
 load_dotenv()
@@ -88,6 +89,7 @@ NEUTRAL_EMOTIONS = set(
 
 
 app = Flask(__name__)
+
 CORS(
     app,
     resources={r"/process_frame": {"origins": "http://localhost:3000"}},
@@ -125,13 +127,23 @@ def get_bboxes(prediction):
     if not "predictions" in prediction["face"]:
         return []
     for p in prediction["face"]["predictions"]:
+        emotions = p["emotions"]
+        top_emotions = sorted(emotions, key=lambda x: x["score"], reverse=True)[:3]
         left, top, width, height = (
             int(p["bbox"]["x"]),
             int(p["bbox"]["y"]),
             int(p["bbox"]["w"]),
             int(p["bbox"]["h"]),
         )
-        bboxes.append({"top": top, "left": left, "width": width, "height": height})
+        bboxes.append(
+            {
+                "top": top,
+                "left": left,
+                "width": width,
+                "height": height,
+                "top_emotions": top_emotions,
+            }
+        )
 
     return bboxes
 

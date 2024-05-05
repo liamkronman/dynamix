@@ -11,6 +11,10 @@
     border: 2px solid #ff0000; /* Red border */
 }
 
+.bounding-box-label {
+    position: absolute;
+}
+
 .webcam-container {
     position: relative;
     width: 60vw;

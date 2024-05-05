@@ -16,16 +16,21 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from pygame.locals import *
 
+# Load the custom font
+
+
 df = pd.read_csv("../spotify/good_matched_song_data.csv")
 pygame.init()
 pygame.mixer.init()
-font = pygame.font.Font(None, 32)
+font = pygame.font.Font(None, 36)
+font_path = "../Press_Start_2P/PressStart2P-Regular.ttf"
+title_font = pygame.font.Font(font_path, 64)
 
-width, height = 800, 500
+width, height = 1120, 700
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Dynamix: Read the Room")
 
-stream_width, stream_height = 640, 400
+stream_width, stream_height = 800, 500
 stream_x, stream_y = (width - stream_width) // 2, (height - stream_height) // 2
 stream_rect = pygame.Rect(stream_x, stream_y, stream_width, stream_height)
 
@@ -107,8 +112,8 @@ NEUTRAL_EMOTIONS = set(
 )
 
 # initialize the positive feedback
-if 'positive_feedback_count' not in df.columns:
-    df['positive_feedback_count'] = 0
+if "positive_feedback_count" not in df.columns:
+    df["positive_feedback_count"] = 0
 
 def update_song_sentiments(current_song_id, sentiment_score):
     """Update the sentiment score of the song based on the current session's feedback."""
@@ -126,10 +131,12 @@ features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
 def calculate_similarity(df):
     return cosine_similarity(df[features])
 
+
 def update_positive_feedback(track_id, feedback_events_count):
     decay_factor = 0.9  # Adjust this based on desired rate of decay
-    df.loc[df['id'] != track_id, 'positive_feedback_count'] *= decay_factor
-    df.loc[df['id'] == track_id, 'positive_feedback_count'] += 1
+    df.loc[df["id"] != track_id, "positive_feedback_count"] *= decay_factor
+    df.loc[df["id"] == track_id, "positive_feedback_count"] += 1
+
 
 similarity_matrix = calculate_similarity(df)
 
@@ -253,9 +260,7 @@ def handle_transition(current_song, next_song):
         # Export and play the transitioned track
         current_pos = pygame.mixer.music.get_pos()
         true_pos = current_pos + offset
-        pygame.mixer.music.load(
-            transitioned_track[true_pos:].export(format="wav")
-        )
+        pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
         pygame.mixer.music.play()
         offset = (
             beat_drop_ms_next_song - transition_duration_ms - (next_start - true_pos)
@@ -358,6 +363,13 @@ def annotate_sentiment_score(frame, sentiment_score, sentiment_history):
     return modified_frame
 
 
+def calculate_headcount(pred):
+    if "predictions" in pred["face"]:
+        return len(pred["face"]["predictions"])
+    else:
+        return 0
+
+
 def calculate_sentiment(pred):
     if "predictions" in pred["face"]:
         pos, neg = 0, 0
@@ -380,13 +392,13 @@ def calculate_sentiment(pred):
         return None
 
 
-
 async def read_frames_and_call_api(websocket, path):
     cap = cv2.VideoCapture(0)
 
     # Initial setup
     num_frames = 20
     sentiment_history = []
+    headcount_history = []
     history = []
     current_song = select_song()
     play_song(current_song)
@@ -403,7 +415,9 @@ async def read_frames_and_call_api(websocket, path):
                 original_width, original_height = frame.shape[1], frame.shape[0]
                 frame_rgb = np.rot90(frame_rgb)
                 frame_surface = pygame.surfarray.make_surface(frame_rgb)
-                frame_surface = pygame.transform.scale(frame_surface, (stream_width, stream_height))
+                frame_surface = pygame.transform.scale(
+                    frame_surface, (stream_width, stream_height)
+                )
 
                 # Fill the background and blit the frame
                 screen.fill((0, 0, 0))
@@ -411,10 +425,19 @@ async def read_frames_and_call_api(websocket, path):
 
                 # Prepare frame data for sending
                 encoded_frame = encode_frame(frame)
-                payload = {"models": {"face": {"identify_faces": True}}, "data": encoded_frame}
+                payload = {
+                    "models": {"face": {"identify_faces": True}},
+                    "data": encoded_frame,
+                }
                 await websocket.send(json.dumps(payload))
                 message = await websocket.recv()
                 pred = json.loads(message)
+
+                # Update headcount
+                current_headcount = calculate_headcount(pred)
+                headcount_history.append(current_headcount)
+                if len(headcount_history) > num_frames:
+                    headcount_history.pop(0)
 
                 # Update sentiment and determine song transitions
                 sentiment_score = calculate_sentiment(pred)
@@ -427,10 +450,15 @@ async def read_frames_and_call_api(websocket, path):
 
                 if sum(sentiment_history) < -10:  # Negative mood detected
                     # only initiate a transition if the beat drop has passed
-                    if pygame.mixer.music.get_pos() >= current_song["beat_drop_s"] * 1000:
+                    if (
+                        pygame.mixer.music.get_pos()
+                        >= current_song["beat_drop_s"] * 1000
+                    ):
                         print("Emergency transition")
                         transition_command = "switch"
-                        next_song = select_song(current_song, transition_command, history)
+                        next_song = select_song(
+                            current_song, transition_command, history
+                        )
                         handle_transition(current_song, next_song)
                         current_song = next_song
                         history.append(current_song["track_name"])
@@ -443,10 +471,12 @@ async def read_frames_and_call_api(websocket, path):
 
                 if "predictions" in pred["face"]:
                     for p in pred["face"]["predictions"]:
-                        draw_bounding_boxes_and_labels(p, frame_surface, original_width, original_height)
+                        draw_bounding_boxes_and_labels(
+                            p, frame_surface, original_width, original_height
+                        )
 
                 # Display current song and mood
-                display_song_and_mood(current_song, current_mood)
+                display_song_and_mood(current_song, current_mood, current_headcount)
 
                 # Update the display
                 pygame.display.flip()
@@ -454,7 +484,7 @@ async def read_frames_and_call_api(websocket, path):
                 if pygame.event.get(pygame.QUIT):
                     break
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
     finally:
@@ -464,29 +494,37 @@ async def read_frames_and_call_api(websocket, path):
         pygame.quit()
 
 
-def display_song_and_mood(current_song, current_mood):
+def display_song_and_mood(current_song, current_mood, current_headcount):
     # Display song info and mood
     current_time = pygame.mixer.music.get_pos() // 1000
     song_info = f'Song: {current_song["track_name"]} - {current_time+offset//1000}s'
-    mood_info = f'Mood: {current_mood}'
+    mood_info = f"Mood: {current_mood}"
+    headcount_info = f"Headcount: {current_headcount}"
 
-    song_text = font.render(song_info, True, pygame.Color('white'))
-    mood_text = font.render(mood_info, True, pygame.Color('white'))
+    title_text = title_font.render("Dynamix", True, pygame.Color("white"))
+    song_text = font.render(song_info, True, pygame.Color("white"))
+    mood_text = font.render(mood_info, True, pygame.Color("white"))
+    headcount_text = font.render(headcount_info, True, pygame.Color("white"))
 
-    screen.blit(song_text, (10, 10))
-    screen.blit(mood_text, (10, 50))
+    screen.blit(title_text, (10, 10))
+    screen.blit(song_text, (10, 90))
+    screen.blit(mood_text, (10, 130))
+    screen.blit(headcount_text, (10, 160))
 
-def draw_bounding_boxes_and_labels(prediction, surface, original_width, original_height):
+
+def draw_bounding_boxes_and_labels(
+    prediction, surface, original_width, original_height
+):
     # Calculate scaling factors
     scale_x = stream_width / original_width
     scale_y = stream_height / original_height
-    
+
     # Adjust bounding box coordinates
     x = int(prediction["bbox"]["x"] * scale_x) + stream_x
     y = int(prediction["bbox"]["y"] * scale_y) + stream_y
     w = int(prediction["bbox"]["w"] * scale_x)
     h = int(prediction["bbox"]["h"] * scale_y)
-    
+
     # Determine the top emotion and set color based on its type
     top_emotion = max(prediction["emotions"], key=lambda e: e["score"])
     if top_emotion["name"] in POSTIVE_EMOTIONS:
@@ -498,16 +536,24 @@ def draw_bounding_boxes_and_labels(prediction, surface, original_width, original
 
     # Draw bounding box
     pygame.draw.rect(screen, color, (x, y, w, h), 2)
-    
+
     # Display the top three emotions with scores
     emotions = prediction["emotions"]
-    top_three = sorted(sorted(emotions, key=lambda e: e["score"], reverse=True)[:3], key=lambda e: e["score"])
+    top_three = sorted(
+        sorted(emotions, key=lambda e: e["score"], reverse=True)[:3],
+        key=lambda e: e["score"],
+    )
     for i, emotion in enumerate(top_three):
         label = f"{emotion['name']}: {round(emotion['score'], 2)}"
         label_surface = font.render(label, True, color)
         screen.blit(label_surface, (x, y - (i + 1) * 20))
 
-if __name__ == '__main__':
+    # Display person id
+    id = font.render(prediction["face_id"], True, color)
+    screen.blit(id, (x, y - (i + 3) * 20))
+
+
+if __name__ == "__main__":
     try:
         asyncio.get_event_loop().run_until_complete(connect_to_websocket())
     except Exception as e:

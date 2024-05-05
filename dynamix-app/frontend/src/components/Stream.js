@@ -42,16 +42,36 @@ const Stream = () => {
         className="webcam"
       />
       {boundingBoxes.map((box, index) => (
-        <div
-          key={index}
-          className="bounding-box"
-          style={{
-            top: `${box.top}px`,
-            left: `${box.left}px`,
-            width: `${box.width}px`,
-            height: `${box.height}px`,
-          }}
-        />
+        <>
+          <div
+            key={index}
+            className="bounding-box"
+            style={{
+              top: `${box.top}px`,
+              left: `${box.left}px`,
+              width: `${box.width}px`,
+              height: `${box.height}px`,
+            }}
+          />
+          {box.top_emotions &&
+            box.top_emotions.map((e, i) => {
+              return (
+                <div
+                  className="bounding-box-label"
+                  style={{
+                    top: `${box.top - i * 20}px`,
+                    left: `${box.left}px`,
+                    width: `${box.width * 2}px`,
+                    height: `${box.height}px`,
+                  }}
+                >
+                  <p>
+                    {e.name}: {e.score}
+                  </p>
+                </div>
+              );
+            })}
+        </>
       ))}
     </div>
   );
