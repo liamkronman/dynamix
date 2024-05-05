@@ -421,7 +421,10 @@ async def read_frames_and_call_api(websocket, path):
                 if len(sentiment_history) > num_frames:
                     sentiment_history.pop(0)
 
-                if sum(sentiment_history) < -10:  # Negative mood detected
+                if (
+                    sum(sentiment_history) < -10
+                    or current_headcount <= headcount_history[0] // 2
+                ):  # Negative mood detected
                     # only initiate a transition if the beat drop has passed
                     if (
                         pygame.mixer.music.get_pos()
