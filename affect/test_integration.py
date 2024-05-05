@@ -458,15 +458,24 @@ def draw_bounding_boxes_and_labels(prediction, surface, original_width, original
     w = int(prediction["bbox"]["w"] * scale_x)
     h = int(prediction["bbox"]["h"] * scale_y)
     
+    # Determine the top emotion and set color based on its type
+    top_emotion = max(prediction["emotions"], key=lambda e: e["score"])
+    if top_emotion["name"] in POSTIVE_EMOTIONS:
+        color = (0, 255, 0)  # Green for positive
+    elif top_emotion["name"] in NEGATIVE_EMOTIONS:
+        color = (255, 0, 0)  # Red for negative
+    else:
+        color = (128, 128, 128)  # Gray for neutral
+
     # Draw bounding box
-    pygame.draw.rect(screen, (255, 0, 0), (x, y, w, h), 2)
+    pygame.draw.rect(screen, color, (x, y, w, h), 2)
     
     # Display the top three emotions with scores
     emotions = prediction["emotions"]
-    top_three = sorted(emotions, key=lambda e: e["score"], reverse=True)[:3]
+    top_three = sorted(emotions, key=lambda e: e["score"])[:3]
     for i, emotion in enumerate(top_three):
         label = f"{emotion['name']}: {round(emotion['score'], 2)}"
-        label_surface = font.render(label, True, (255, 0, 0))
+        label_surface = font.render(label, True, color)
         screen.blit(label_surface, (x, y - (i + 1) * 20))
 
 if __name__ == '__main__':
