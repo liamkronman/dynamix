@@ -1,0 +1,57 @@
+.Queue {
+    display: flex;
+    flex-direction: column;
+    row-gap: 8px;
+    height: 100%;
+    
+}
+
+.song-card {
+    position: relative;
+    overflow: hidden;
+    width: 300px;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background-color: #a7a7a74e;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+
+.song-details {
+    flex: 1;
+}
+
+.song-title {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #ffffff;
+}
+
+.artist,
+.album {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.song-card:hover  {
+    transform: scale(1.1);
+}
+
+
+.control-button {
+    width: 64px;
+    height: 64px;
+    border-radius: 100%;
+    border: none;
+    background-color: #a7a7a74e;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.25s ease-in;
+}
+
+.control-button:hover {
+    background-color: #eeeeee4e;
+}

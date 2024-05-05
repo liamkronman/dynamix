@@ -1,0 +1,21 @@
+.webcam {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 60vw;
+    height: 80vh;
+}
+
+.bounding-box {
+    position: absolute;
+    border: 2px solid #ff0000; /* Red border */
+}
+
+.webcam-container {
+    position: relative;
+    width: 60vw;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
