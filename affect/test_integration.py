@@ -112,8 +112,8 @@ NEUTRAL_EMOTIONS = set(
 )
 
 # initialize the positive feedback
-if "positive_feedback_count" not in df.columns:
-    df["positive_feedback_count"] = 0
+if 'sentiment_score' not in df.columns:
+    df['sentiment_score'] = 0
 
 def update_song_sentiments(current_song_id, sentiment_score):
     """Update the sentiment score of the song based on the current session's feedback."""
@@ -130,12 +130,6 @@ features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
 # Function to calculate similarity matrix
 def calculate_similarity(df):
     return cosine_similarity(df[features])
-
-
-def update_positive_feedback(track_id, feedback_events_count):
-    decay_factor = 0.9  # Adjust this based on desired rate of decay
-    df.loc[df["id"] != track_id, "positive_feedback_count"] *= decay_factor
-    df.loc[df["id"] == track_id, "positive_feedback_count"] += 1
 
 
 similarity_matrix = calculate_similarity(df)
