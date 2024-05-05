@@ -96,6 +96,7 @@ CORS(
 )
 
 client = HumeStreamClient(os.getenv("HUME_API_KEY"))
+print(f"Hume API key: {os.getenv("HUME_API_KEY")}")
 config = FaceConfig(identify_faces=True)
 
 df = pd.read_csv("./spotify/good_matched_song_data.csv")
@@ -237,7 +238,7 @@ def select_song(current_song=None, switch_type=None, history=None):
 sentiment_history = []
 song_history = []
 current_song = select_song()
-file_path = "./songs/" + current_song["local_path"]
+file_path = "../../songs/" + current_song["local_path"]
 can_transition = True
 
 
@@ -250,7 +251,7 @@ def handle_transition(current_song, next_song):
     print(f"Current Position: {current_pos / 1000.0} seconds")
     print(f"Tempo: {current_song['tempo']} -> {next_song['tempo']}")
     bpm1 = current_song["tempo"]
-    track_length_ms = len(read_wav("./songs/" + current_song["local_path"]))
+    track_length_ms = len(read_wav("../../songs/" + current_song["local_path"]))
     drop_ms = (
         current_song["beat_drop_s"] * 1000
     )  # Convert beat drop time to milliseconds
@@ -263,8 +264,8 @@ def handle_transition(current_song, next_song):
         transition_duration_ms = calculate_transition_timing(bpm1, 8, 4)
         # Assuming transition function is set to handle two audio segments
         transitioned_track, _ = gradual_high_pass_blend_transition(
-            read_wav("./songs/" + current_song["local_path"]),
-            read_wav("./songs/" + next_song["local_path"]),
+            read_wav("../../songs/" + current_song["local_path"]),
+            read_wav("../../songs/" + next_song["local_path"]),
             next_start + transition_duration_ms,
             beat_drop_ms_next_song,
             current_song["tempo"],
@@ -285,7 +286,7 @@ def handle_transition(current_song, next_song):
             format="wav"
         )
 
-        response = change_audio_file(f'./songs/{next_song["local_path"]}')
+        response = change_audio_file(f'../../songs/{next_song["local_path"]}')
         print(response)  # Print the response returned by change_audio_file
         global can_transition
         can_transition = False
