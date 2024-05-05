@@ -398,16 +398,18 @@ async def read_frames_and_call_api(websocket, path):
                     sentiment_history.pop(0)
 
                 if sum(sentiment_history) < -10:  # Negative mood detected
-                    print("Emergency transition")
-                    transition_command = "switch"
-                    next_song = select_song(current_song, transition_command, history)
-                    handle_transition(current_song, next_song)
-                    current_song = next_song
-                    history.append(current_song["track_name"])
-                    for _ in range(20):
-                        sentiment_history.append(1)
-                    if len(history) > 10:
-                        history.pop(0)
+                    # only initiate a transition if the beat drop has passed
+                    if pygame.mixer.music.get_pos() >= current_song["beat_drop_s"] * 1000:
+                        print("Emergency transition")
+                        transition_command = "switch"
+                        next_song = select_song(current_song, transition_command, history)
+                        handle_transition(current_song, next_song)
+                        current_song = next_song
+                        history.append(current_song["track_name"])
+                        for _ in range(20):
+                            sentiment_history.append(1)
+                        if len(history) > 10:
+                            history.pop(0)
                 else:
                     print("Continue playing")
 
