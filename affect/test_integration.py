@@ -19,7 +19,7 @@ from pygame.locals import *
 df = pd.read_csv("../spotify/good_matched_song_data.csv")
 pygame.init()
 pygame.mixer.init()
-font = pygame.font.Font(None, 36)
+font = pygame.font.Font(None, 32)
 
 width, height = 800, 500
 screen = pygame.display.set_mode((width, height))
@@ -121,7 +121,6 @@ def update_positive_feedback(track_id, feedback_events_count):
     decay_factor = 0.9  # Adjust this based on desired rate of decay
     df.loc[df['id'] != track_id, 'positive_feedback_count'] *= decay_factor
     df.loc[df['id'] == track_id, 'positive_feedback_count'] += 1
-
 
 similarity_matrix = calculate_similarity(df)
 
@@ -438,7 +437,7 @@ async def read_frames_and_call_api(websocket, path):
 def display_song_and_mood(current_song, current_mood):
     # Display song info and mood
     current_time = pygame.mixer.music.get_pos() // 1000
-    song_info = f'Song: {current_song["track_name"]} - {current_time}s'
+    song_info = f'Song: {current_song["track_name"]} - {current_time+offset//1000}s'
     mood_info = f'Mood: {current_mood}'
 
     song_text = font.render(song_info, True, pygame.Color('white'))
@@ -472,7 +471,7 @@ def draw_bounding_boxes_and_labels(prediction, surface, original_width, original
     
     # Display the top three emotions with scores
     emotions = prediction["emotions"]
-    top_three = sorted(emotions, key=lambda e: e["score"])[:3]
+    top_three = sorted(sorted(emotions, key=lambda e: e["score"], reverse=True)[:3], key=lambda e: e["score"])
     for i, emotion in enumerate(top_three):
         label = f"{emotion['name']}: {round(emotion['score'], 2)}"
         label_surface = font.render(label, True, color)
