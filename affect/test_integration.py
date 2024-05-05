@@ -115,16 +115,21 @@ NEUTRAL_EMOTIONS = set(
 if "positive_feedback_count" not in df.columns:
     df["positive_feedback_count"] = 0
 
+
 def update_song_sentiments(current_song_id, sentiment_score):
     """Update the sentiment score of the song based on the current session's feedback."""
     if current_song_id in df.index:
-        df.loc[current_song_id, 'play_count'] += 1
+        df.loc[current_song_id, "play_count"] += 1
         # Calculate a rolling average of sentiment scores
-        current_average = df.loc[current_song_id, 'sentiment_score']
-        new_average = (current_average * (df.loc[current_song_id, 'play_count'] - 1) + sentiment_score) / df.loc[current_song_id, 'play_count']
-        df.loc[current_song_id, 'sentiment_score'] = new_average
+        current_average = df.loc[current_song_id, "sentiment_score"]
+        new_average = (
+            current_average * (df.loc[current_song_id, "play_count"] - 1)
+            + sentiment_score
+        ) / df.loc[current_song_id, "play_count"]
+        df.loc[current_song_id, "sentiment_score"] = new_average
 
-features = ['danceability', 'energy', 'tempo', 'loudness', 'valence']
+
+features = ["danceability", "energy", "tempo", "loudness", "valence"]
 # df[features] = df[features].apply(lambda x: (x - x.min()) / (x.max() - x.min())) # don't change TEMPO!
 
 # Function to calculate similarity matrix
@@ -142,6 +147,7 @@ similarity_matrix = calculate_similarity(df)
 
 emotional_scores = []
 
+
 def calculate_sentiment(pred):
     global emotional_scores
     pos, neg = 0, 0
@@ -154,9 +160,11 @@ def calculate_sentiment(pred):
                 neg += e["score"]
     emotional_scores.append(pos - neg)
 
+
 def reset_emotional_scores():
     global emotional_scores
     emotional_scores = []
+
 
 def select_song(current_song=None, switch_type=None, history=None):
     """Selects a song based on the current song and switch type, avoiding recent history and the current song."""
@@ -264,7 +272,9 @@ def handle_transition(current_song, next_song):
             pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
             pygame.mixer.music.play()
             offset = (
-                beat_drop_ms_next_song - transition_duration_ms - (next_start - true_pos)
+                beat_drop_ms_next_song
+                - transition_duration_ms
+                - (next_start - true_pos)
             )
     else:
         print("No beat drop info found, playing next song immediately.")
@@ -390,7 +400,7 @@ def calculate_sentiment(pred):
         else:
             return -1
     else:
-        return None
+        return 0
 
 
 async def read_frames_and_call_api(websocket, path):
@@ -410,6 +420,7 @@ async def read_frames_and_call_api(websocket, path):
         while True:
             # Capture frame-by-frame
             ret, frame = cap.read()
+
             if ret:
                 # Process frame for display
                 frame_rgb = cv2.cvtColor(cv2.flip(frame, 1), cv2.COLOR_BGR2RGB)
@@ -442,9 +453,8 @@ async def read_frames_and_call_api(websocket, path):
 
                 # Update sentiment and determine song transitions
                 sentiment_score = calculate_sentiment(pred)
-                if sentiment_score:
-                    sentiment_history.append(sentiment_score)
-                    current_mood = "Positive" if sentiment_score == 1 else "Negative"
+                sentiment_history.append(sentiment_score)
+                current_mood = "Positive" if sentiment_score == 1 else "Negative"
 
                 if len(sentiment_history) > num_frames:
                     sentiment_history.pop(0)
@@ -466,12 +476,10 @@ async def read_frames_and_call_api(websocket, path):
                         handle_transition(current_song, next_song)
                         current_song = next_song
                         history.append(current_song["track_name"])
-                        for _ in range(20):
-                            sentiment_history.append(1)
-                        if len(history) > 10:
-                            history.pop(0)
+                        sentiment_history = [1] * num_frames
                 else:
                     print("Continue playing")
+                    print(sentiment_history)
 
                 if "predictions" in pred["face"]:
                     for p in pred["face"]["predictions"]:
@@ -487,6 +495,10 @@ async def read_frames_and_call_api(websocket, path):
 
                 if pygame.event.get(pygame.QUIT):
                     break
+
+                continue
+
+            print("Uh oh no ret ", ret)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
