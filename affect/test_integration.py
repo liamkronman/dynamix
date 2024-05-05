@@ -112,8 +112,8 @@ NEUTRAL_EMOTIONS = set(
 )
 
 # initialize the positive feedback
-if 'sentiment_score' not in df.columns:
-    df['sentiment_score'] = 0
+if "sentiment_score" not in df.columns:
+    df["sentiment_score"] = 0
 
 
 def update_song_sentiments(current_song_id, sentiment_score):
@@ -142,8 +142,9 @@ similarity_matrix = calculate_similarity(df)
 emotional_scores = []
 
 transitioning = False
-transition_start = -1   # tracks the start of the transition
-transition_end = -1     # tracks the end of the transition
+transition_start = -1  # tracks the start of the transition
+transition_end = -1  # tracks the end of the transition
+
 
 def calculate_sentiment(pred):
     global emotional_scores
@@ -419,7 +420,9 @@ async def read_frames_and_call_api(websocket, path):
 
     try:
         while True:
-            current_pos = pygame.mixer.music.get_pos()  # Get current position in milliseconds
+            current_pos = (
+                pygame.mixer.music.get_pos()
+            )  # Get current position in milliseconds
             if transition_start <= current_pos <= transition_end:
                 transitioning = True
                 print("Transitioning")
@@ -485,8 +488,9 @@ async def read_frames_and_call_api(websocket, path):
                         history.append(current_song["track_name"])
                         sentiment_history = [1] * num_frames
                 else:
-                    print("Continue playing")
-                    print(sentiment_history)
+                    # print("Continue playing")
+                    # print(sentiment_history)
+                    pass
 
                 if "predictions" in pred["face"]:
                     for p in pred["face"]["predictions"]:
@@ -495,7 +499,9 @@ async def read_frames_and_call_api(websocket, path):
                         )
 
                 # Display current song and mood
-                display_song_and_mood(current_song, current_mood, current_headcount)
+                display_song_and_mood(
+                    current_song, current_mood, current_headcount, transitioning
+                )
 
                 # Update the display
                 pygame.display.flip()
@@ -504,8 +510,6 @@ async def read_frames_and_call_api(websocket, path):
                     break
 
                 continue
-
-            print("Uh oh no ret ", ret)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
@@ -517,7 +521,7 @@ async def read_frames_and_call_api(websocket, path):
         pygame.quit()
 
 
-def display_song_and_mood(current_song, current_mood, current_headcount):
+def display_song_and_mood(current_song, current_mood, current_headcount, transitioning):
     # Display song info and mood
     current_time = pygame.mixer.music.get_pos() // 1000
     song_info = f'Song: {current_song["track_name"]} - {current_time+offset//1000}s'
@@ -533,6 +537,16 @@ def display_song_and_mood(current_song, current_mood, current_headcount):
     screen.blit(song_text, (10, 90))
     screen.blit(mood_text, (10, 130))
     screen.blit(headcount_text, (10, 160))
+
+    if transitioning:
+        screen.blit(
+            font.render(
+                "TRANSITIONING",
+                True,
+                pygame.Color("white"),
+            ),
+            (10, 190),
+        )
 
 
 def draw_bounding_boxes_and_labels(
