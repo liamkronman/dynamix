@@ -7,7 +7,7 @@ Dynamix is a novel system designed to automate DJ functions by dynamically inter
 1. [Installation](#installation)
 2. [Usage](#usage)
 3. [Folder Structure](#folder-structure)
-4. [Dynamix App](#dynamix-app)
+<!-- 4. [Dynamix App](#dynamix-app) -->
 
 
 ## Installation
@@ -55,6 +55,8 @@ The organization of this repository is as follows:
     └── ...
 ```
 
+
+<!-- 
 ## Dynamix App
 The Dynamix app is still a WIP and it is preferable that you follow the instructions in the Usage (#usage) section instead to run the system. However if you would like to check it out:
 
@@ -83,3 +85,4 @@ $ cd dynamix-app/backend
 ```bash
 $ python backend.py
 ```
+-->
