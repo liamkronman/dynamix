@@ -7,6 +7,7 @@ Dynamix is a novel system designed to automate DJ functions by dynamically inter
 1. [Installation](#installation)
 2. [Usage](#usage)
 3. [Folder Structure](#folder-structure)
+4. [Dynamix App](#dynamix-app)
 
 
 ## Installation
@@ -39,10 +40,10 @@ The organization of this repository is as follows:
 │   ├── test_integration.py # The file to run the system!
 │   └── ...
 │
-├── dynamix-app/        # Folder for the Dynamix app
-│   ├── index.html      # Main HTML file
-│   ├── styles.css      # CSS styles
-│   └── ...
+├── dynamix-app/        # Folder for Dynamix app that streams video with client and plays audio in the backend
+│   ├── backend/    
+│   └── frontend      
+│   
 │
 ├── songs/              # Contains songs used in the system
 │
@@ -52,3 +53,33 @@ The organization of this repository is as follows:
 │
 └── transitions/        # Folder containing helper functions for transitioning between songs
     └── ...
+```
+
+## Dynamix App
+The Dynamix app is still a WIP and it is preferable that you follow the instructions in the Usage (#usage) section instead to run the system. However if you would like to check it out:
+
+1. Navigate to the `dynamix-app/frontend` directory by running the following command from the root of the cloned repository:
+
+```bash
+$ cd dynamix-app/frontend
+```
+
+2. Once you're in the dynamix-app/frontend directory, install the necessary dependencies by running:
+```bash
+$ npm install
+```
+
+3. After the installation is complete, start the frontend server by running:
+``` bash
+$ npm start
+```
+
+4. In a new terminal, navigate to the `dynamix-app/backend` directory by running the following command from the root of the cloned repository:
+```bash
+$ cd dynamix-app/backend
+```
+
+5. Run the backend script via the following command:
+```bash
+$ python backend.py
+```
