@@ -22,6 +22,7 @@ from pygame.locals import *
 df = pd.read_csv("../spotify/good_matched_song_data.csv")
 pygame.init()
 pygame.mixer.init()
+big_font = pygame.font.Font(None, 72)
 font = pygame.font.Font(None, 36)
 font_path = "../Press_Start_2P/PressStart2P-Regular.ttf"
 title_font = pygame.font.Font(font_path, 64)
@@ -126,29 +127,9 @@ def calculate_similarity(df):
 similarity_matrix = calculate_similarity(df_features_scaled)
 print(f"Song similarity matrix: {similarity_matrix}")
 
-emotional_scores = []
-
 transitioning = False
 transition_start = -1  # tracks the start of the transition
 transition_end = -1  # tracks the end of the transition
-
-
-def calculate_sentiment(pred):
-    global emotional_scores
-    pos, neg = 0, 0
-    for p in pred["face"]["predictions"]:
-        emotions = p["emotions"]
-        for e in emotions:
-            if e["name"] in POSTIVE_EMOTIONS:
-                pos += e["score"]
-            elif e["name"] in NEGATIVE_EMOTIONS:
-                neg += e["score"]
-    emotional_scores.append(pos - neg)
-
-
-def reset_emotional_scores():
-    global emotional_scores
-    emotional_scores = []
 
 
 def select_song(current_song=None, switch_type=None, history=None):
@@ -235,7 +216,7 @@ def handle_transition(current_song, next_song):
             true_pos = current_pos + offset
             pygame.mixer.music.load(transitioned_track[true_pos:].export(format="wav"))
             pygame.mixer.music.play()
-            transition_start = next_start - true_pos
+            transition_start = 0
             transition_end = transition_duration_ms + transition_start
             offset = (
                 beat_drop_ms_next_song
@@ -429,6 +410,7 @@ async def read_frames_and_call_api(websocket, path):
                 sentiment_score = calculate_sentiment(pred)
                 # add sentiment score to "sentiment_score" column in df for current song
                 df.loc[df['track_name'] == current_song['track_name'], 'sentiment_score'] += sentiment_score
+                print(df.loc[df['track_name'] == current_song['track_name'], 'sentiment_score'])
                 sentiment_history.append(sentiment_score)
                 current_mood = "Positive" if sentiment_score == 1 else "Negative"
 
@@ -437,7 +419,7 @@ async def read_frames_and_call_api(websocket, path):
 
                 if (
                     sum(sentiment_history) < -10
-                    or current_headcount <= headcount_history[0] // 2
+                    
                 ):  # Negative mood detected
                     # only initiate a transition if the beat drop has passed
                     if (
