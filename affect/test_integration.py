@@ -131,10 +131,14 @@ transitioning = False
 transition_start = -1  # tracks the start of the transition
 transition_end = -1  # tracks the end of the transition
 
+ALPHA_DECAY=0.9
 
 def select_song(current_song=None, switch_type=None, history=None):
     """Selects a song based on the current song and switch type, avoiding recent history and the current song."""
     global similarity_matrix, df
+
+    # multiply all sentiment scores by alpha decay to decay old sentiment scores
+    df['sentiment_score'] *= ALPHA_DECAY
 
     if history is None:
         history = []
